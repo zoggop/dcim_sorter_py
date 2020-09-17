@@ -3,7 +3,6 @@ import os
 import sys
 import platform
 import datetime
-import os.path
 import exifread
 import re
 from shutil import copyfile
@@ -113,7 +112,7 @@ def image_datetime(filepath):
 		hour, minute, second = spaced[1].split(':')
 		return datetime.datetime(year, month, mday, hour, minute, second)
 	else:
-		return os.path.getmtime(str(filepath))
+		return filepath.stat().st_mtime
 
 def parse_format_string(format, dt, filepath):
 	formatted = dt.strftime(format)
