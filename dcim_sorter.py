@@ -14,10 +14,10 @@ minSpace = 1000
 exts = ['dng', 'cr2', 'cr3', 'nef', '3fr', 'arq', 'crw', 'cs1', 'czi', 'dcr', 'erf', 'gpr', 'iiq', 'k25', 'kdc', 'mef', 'mrw', 'nrw', 'orf', 'pef', 'r3d', 'raw', 'rw2', 'rwl', 'rwz', 'sr2', 'srf', 'srw', 'x3f'] # files with these exntensions will be copied to raw destination
 nonRawExts = ['jpg', 'jpeg', 'png', 'webp', 'heif', 'heic', 'avci', 'avif']
 sidecarExts = ['pp3', 'pp2', 'arp', 'xmp']
-destDir = '/Users/zoggop/Raw' # where to copy raw files into directory structure
-nonRawDestDir = '/Users/zoggop/Pictures' # where to copy non-raw images into directory structure
+destDir = '/Users/isaac/Raw' # where to copy raw files into directory structure
+nonRawDestDir = '/Users/isaac/Pictures' # where to copy non-raw images into directory structure
 pathForm = '#Model#\%Y\%Y-%m' # surround EXIF tags with #, and can use POSIX datetime place-holder
-otherDirs = ['/Users/zoggop/Raw/dark-frames', '/Users/zoggop/Raw/flat-fields'] # directories to look for copies other than the destination directories
+otherDirs = ['/Users/isaac/Raw/dark-frames', '/Users/isaac/Raw/flat-fields'] # directories to look for copies other than the destination directories
 
 srcDir = sys.argv[1]
 print(srcDir)
@@ -46,26 +46,38 @@ def press_enter_to_exit():
 destPath = destDir.split(slsh)
 nonRawDestPath = nonRawDestDir.split(slsh)
 srcPath = srcDir.split(slsh)
-srcContainsDest = 1
-destContainsSrc = 1
+srcContainsDest = True
+destContainsSrc = True
 for i in range(0, max(len(srcPath), len(destPath), len(nonRawDestPath))):
-	ddir = destPath[i]
-	nrddir = nonRawDestPath[i]
-	sdir = srcPath[i]
-	if not ddir == sdir and not nrddir == sdir:
-		if i <= len(srcPath):
+	if i < len(destPath):
+		ddir = destPath[i]
+	else:
+		ddir = ''
+	if i < len(nonRawDestPath):
+		nrddir = nonRawDestPath[i]
+	else:
+		nrddir = ''
+	if i < len(srcPath):
+		sdir = srcPath[i]
+	else:
+		sdir = ''
+	# print(i, sdir, ddir, nrddir)
+	if ddir != sdir and nrddir != sdir:
+		if i < len(srcPath):
 			srcContainsDest = False
-		if i <= len(destPath):
+		if i < len(destPath):
 			destContainsSrc = False
-		if i <= len(nonRawDestPath):
+		if i < len(nonRawDestPath):
 			destContainsSrc = False
 if destContainsSrc or srcContainsDest:
 	if srcContainsDest:
-		print("source directory contains or is the same as destination directory")
+		print("source directory contains or is the same as a destination directory")
 	elif destContainsSrc:
-		print("destination directory contains or is the same as source directory")
+		print("a destination directory contains or is the same as source directory")
 	print("source: \t\t{srcDir}\ndestination: \t\t{destDir}\nnon-raw destination: \t{nonRawDestDir}".format(**locals()))
 	press_enter_to_exit()
+
+exit()
 
 # create extension hashes
 validExts = {}
@@ -196,8 +208,6 @@ def process_file(file, srcFile):
 					dotStr = ''
 					copyfile(scf, dscf)
 
-
-print(srcDir)
 
 files = glob.glob(srcDir + slsh + '**' + slsh + '*', recursive = True) 
 for filepath in files:
