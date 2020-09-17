@@ -8,6 +8,7 @@ import exifread
 import re
 from shutil import copyfile
 import glob
+import pathlib
 
 oldEnough = 30
 minSpace = 1000
@@ -19,12 +20,13 @@ nonRawDestDir = '/Users/isaac/Pictures' # where to copy non-raw images into dire
 pathForm = '#Model#\%Y\%Y-%m' # surround EXIF tags with #, and can use POSIX datetime place-holder
 otherDirs = ['/Users/isaac/Raw/dark-frames', '/Users/isaac/Raw/flat-fields'] # directories to look for copies other than the destination directories
 
-srcDir = sys.argv[1]
-print(srcDir)
-
-slsh = '/'
-if platform.system() == 'Windows':
-	slsh = '\\'
+destPath = pathlib.Path(destDir)
+nonRawDestPath = pathlib.Path(nonRawDestDir)
+otherPaths = []
+for d in otherDirs:
+	otherPaths.append(pathlib.Path(d))
+srcPath = pathlib.Path(sys.argv[1])
+print(str(srcPath))
 
 wchar = os.get_terminal_size(0).columns
 
@@ -34,47 +36,43 @@ def get_char(query, allowables):
 		allowable[char] = True
 	while True:
 		data = input("{query}:\n".format(**locals()))
-		if allowable[data[-1]]:
+		if len(data) > 0 and allowable[data[-1]]:
 			break
 	return data
 
 def press_enter_to_exit():
-	get_char("press ENTER to exit", [chr(13)])
+	input("press ENTER to exit:")
 	exit()
 
 # check if a destination contains source or source contains a destination
-destPath = destDir.split(slsh)
-nonRawDestPath = nonRawDestDir.split(slsh)
-srcPath = srcDir.split(slsh)
 srcContainsDest = True
 destContainsSrc = True
-for i in range(0, max(len(srcPath), len(destPath), len(nonRawDestPath))):
-	if i < len(destPath):
-		ddir = destPath[i]
+for i in range(0, max(len(srcPath.parts), len(destPath.parts), len(nonRawDestPath.parts))):
+	if i < len(destPath.parts):
+		dseg = destPath.parts[i]
 	else:
-		ddir = ''
-	if i < len(nonRawDestPath):
-		nrddir = nonRawDestPath[i]
+		dseg = ''
+	if i < len(nonRawDestPath.parts):
+		nrdseg = nonRawDestPath.parts[i]
 	else:
-		nrddir = ''
-	if i < len(srcPath):
-		sdir = srcPath[i]
+		nrdseg = ''
+	if i < len(srcPath.parts):
+		sseg = srcPath.parts[i]
 	else:
-		sdir = ''
-	# print(i, sdir, ddir, nrddir)
-	if ddir != sdir and nrddir != sdir:
-		if i < len(srcPath):
+		sseg = ''
+	if dseg != sseg and nrdseg != sseg:
+		if i < len(srcPath.parts):
 			srcContainsDest = False
-		if i < len(destPath):
+		if i < len(destPath.parts):
 			destContainsSrc = False
-		if i < len(nonRawDestPath):
+		if i < len(nonRawDestPath.parts):
 			destContainsSrc = False
 if destContainsSrc or srcContainsDest:
 	if srcContainsDest:
 		print("source directory contains or is the same as a destination directory")
 	elif destContainsSrc:
 		print("a destination directory contains or is the same as source directory")
-	print("source: \t\t{srcDir}\ndestination: \t\t{destDir}\nnon-raw destination: \t{nonRawDestDir}".format(**locals()))
+	print("source: \t\t{srcPath}\ndestination: \t\t{destPath}\nnon-raw destination: \t{nonRawDestPath}".format(**locals()))
 	press_enter_to_exit()
 
 exit()
@@ -83,9 +81,9 @@ exit()
 validExts = {}
 validNonRawExts = {}
 for ext in exts:
-	validExts['.' + ext.upper()] = True
+	validExts[ext.upper()] = True
 for ext in nonRawExts:
-	validNonRawExts['.' + ext.upper()] = True
+	validNonRawExts[ext.upper()] = True
 
 fileCount = 0
 dupeCount = 0
@@ -105,9 +103,9 @@ newestDT = nowDT
 dotStr = ''
 
 def image_datetime(filepath):
-	if not os.path.isfile(filepath):
+	if not filepath.is_file():
 		return
-	f = open(filepath)
+	f = filepath.open()
 	tags = exifread.process_file(f, details=False, stop_tag='DateTimeOriginal')
 	if 'DateTimeOriginal' in tags.keys():
 		spaced = tags["Image Orientation"].split(' ')
@@ -115,12 +113,12 @@ def image_datetime(filepath):
 		hour, minute, second = spaced[1].split(':')
 		return datetime.datetime(year, month, mday, hour, minute, second)
 	else:
-		return os.path.getmtime(filepath)
+		return os.path.getmtime(str(filepath))
 
 def parse_format_string(format, dt, filepath):
 	formatted = dt.strftime(format)
 	tags = {}
-	with open(filepath, 'rb') as f:
+	with filepath.open('rb') as f:
 		tags = exifread.process_file(f, details=False)
 	for tag in tags.keys():
 		value = tags[tag]
@@ -129,27 +127,25 @@ def parse_format_string(format, dt, filepath):
 	return formatted
 
 def delete_sidecars(filepath):
-	pathAndName = re.match('.*(?=\.)', filepath)
 	for scExt in sidecarExts:
-		sidecarFiles = [filepath + '.' + scExt, pathAndName + '.' + scExt]
+		sidecarFiles = [pathlib.Path(str(filepath) + '.' + scExt), pathlib.Path(filepath.parent / filepath.stem + '.' + scExt)]
 		for scf in sidecarFiles:
-			if os.path.isfile(scf):
-				print('X ' + scf)
-				os.remove(scf)
+			if scf.is_file():
+				print('X ' + str(scf))
+				scf.unlink()
 
 def delete_image(filepath):
-	print('X ' + filepath)
-	os.remove(filepath)
 	delete_sidecars(filepath)
-	path = re.match('.*(?=\\)', filepath)
-	potentiallyEmptyPathYes[path] = True
+	print('X ' + str(filepath))
+	filepath.unlink()
+	potentiallyEmptyPathYes[filepath.parent] = True
 
-def process_file(file, srcFile):
-	ext = re.match('(\.[^.]+)$', file)
-	pathAndName = re.match('.*(?=\.)', srcFile)
-	if validExts[ext.upper()] or validNonRawExts[ext.upper()]:
+def process_file(filepath):
+	ext = filepath.suffix
+	ext = ext.upper()
+	if validExts[ext] or validNonRawExts[ext]:
 		fileCount = fileCount + 1
-		srcDT = image_datetime(srcFile)
+		srcDT = image_datetime(str(filepath))
 		if fileCount == 1:
 			oldestDT = srcDT
 			newestDT = srcDT
@@ -157,27 +153,26 @@ def process_file(file, srcFile):
 			oldestDT = srcDT
 		if srcDT > newestDT:
 			newestDT = srcDT
-		destSubPath = parse_format_string(pathForm, srcDT, srcFile)
-		destPath = ''
-		if validNonRawExts[ext.upper()]:
-			destPath = nonRawDestDir + slsh + destSubPath
+		destSubPath = parse_format_string(pathForm, srcDT, filepath)
+		destStr = ''
+		if validNonRawExts[ext]:
+			destStr = nonRawDestPath / destSubPath
 		else:
-			destPath = destDir + slsh + destSubPath
-		destFile = destPath + slsh + file
-		destPathAndName = re.match('.*(?=\.)', destFile)
+			destStr = destPath / destSubPath
+		destFile = pathlib.PurePath(destStr / filepath.name)
 		found = False
-		dirs = [destPath] + otherDirs
-		for d in dirs:
-			lookFile = d + slsh + file
-			if os.path.isfile(lookFile) and os.path.getsize(lookFile) == os.path.getsize(srcFile) and srcDT == image_datetime(lookFile):
+		paths = [pathlib.PurePath(destStr)] + otherPaths
+		for p in paths:
+			look = pathlib.Path(p / filepath.name)
+			if look.is_file() and look.stat().st_size == filepath.stat().st_size and srcDT == image_datetime(look):
 				found = True
 				break
 		if found:
 			ago = nowDT - srcDT
 			if ago.days > oldEnough:
 				safeOldImageCount = safeOldImageCount + 1
-				safeOldImagesExist[srcFile] = True
-			datesBySafeImageFilepaths[srcFile] = srcDT
+				safeOldImagesExist[str(filepath)] = True
+			datesBySafeImageFilepaths[str(filepath)] = srcDT
 			dupeCount = dupeCount + 1
 			if dotStr != '':
 				if len(dotStr) == wchar:
@@ -187,30 +182,29 @@ def process_file(file, srcFile):
 			print(dotStr)
 		else:
 			# if file not found in destination, make directories and copy it
-			print(srcFile)
-			print('-> ' + destFile)
+			print(str(filepath))
+			print('-> ' + str(destFile))
 			dotStr = ''
-			os.makedirs(destPath)
-			copyfile(srcFile, destFile)
-			datesByCopiedFiles[destFile] = srcDT
-			sourcesByCopiedFiles[destFile] = srcFile
+			os.makedirs(destFile.parent)
+			copyfile(str(filepath), str(destFile))
+			datesByCopiedFiles[str(destFile)] = srcDT
+			sourcesByCopiedFiles[str(destFile)] = str(filepath)
 			copyCount = copyCount + 1
 		# copy sidecars if present
 		for scExt in sidecarExts:
-			sidecarFiles = [srcFile + '.' + scExt, pathAndName + '.' + scExt]
-			destSidecarFiles = [destFile + '.' + scExt, destPathAndName]
+			sidecarFiles = [str(filepath) + '.' + scExt, filepath.parent / filepath.stem + '.' + scExt]
+			destSidecarFiles = [str(destFile) + '.' + scExt, destFile.parent / destFile.stem + '.' + scExt]
 			for i in range(0, len(sidecarFiles)):
-				scf = sidecarFiles[i]
-				dscf = destSidecarFiles[i]
-				if not os.path.isfile(dscf):
-					print(scf)
-					print('-> ' + dscf)
+				scf = pathlib.Path(sidecarFiles[i])
+				dscf = pathlib.Path(destSidecarFiles[i])
+				if not dscf.is_file():
+					print(str(scf))
+					print('-> ' + str(dscf))
 					dotStr = ''
-					copyfile(scf, dscf)
+					copyfile(str(scf), str(dscf))
 
 
-files = glob.glob(srcDir + slsh + '**' + slsh + '*', recursive = True) 
+files = srcPath.glob('**/*', recursive = True) 
 for filepath in files:
-	file = re.match('[^\\/:*?"<>|\r\n]+$', filepath)
 	print(filepath)
-	# process_file(file, filepath)
+	# process_file(filepath)
