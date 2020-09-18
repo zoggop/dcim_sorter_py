@@ -28,16 +28,17 @@ srcPath = pathlib.Path(sys.argv[1])
 print(str(srcPath))
 
 wchar = os.get_terminal_size(0).columns
+print(wchar, 'columns')
 
-def get_char(query, allowables):
-	allowable = {}
-	for char in allowables:
-		allowable[char.upper()] = True
-	while True:
-		data = input("{query}:\n".format(**locals()))
-		if len(data) > 0 and allowable.get(data[-1].upper()):
-			break
-	return data
+def format_bytes(size):
+    # 2**10 = 1024
+    power = 2**10
+    n = 0
+    power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(int(size)) + ' ' + power_labels[n]+'B'
 
 def press_enter_to_exit():
 	input("press ENTER to exit")
@@ -101,6 +102,9 @@ oldestDT = nowDT
 newestDT = nowDT
 
 dotStr = ''
+
+def get_safe_datetime(fileStr):
+	return datesBySafeImageFilepaths.get(fileStr)
 
 def image_datetime(filepath):
 	if not filepath.is_file():
@@ -185,6 +189,7 @@ def process_file(filepath):
 			if dotStr != '':
 				if len(dotStr) == wchar:
 					dotStr = ''
+					print('')
 				print("\033[F", end = '')
 			dotStr = dotStr + '.'
 			print(dotStr)
@@ -239,10 +244,41 @@ for destStr in sourcesByCopiedFiles.keys():
 			safeOldImagesExist[srcStr] = True
 		datesBySafeImageFilepaths[srcStr] = srcDT
 
+# check space on source drive if different, and potentially free up space by deleting old images
+# print(srcPath.stat().st_dev, destPath.stat().st_dev)
+if srcPath.stat().st_dev != destPath.stat().st_dev:
+	st = os.statvfs(str(srcPath))
+	free = st.f_bavail * st.f_frsize
+	total = st.f_blocks * st.f_frsize
+	used = (st.f_blocks - st.f_bfree) * st.f_frsize
+	# print('free:', format_bytes(free), "total:", format_bytes(total), 'used:', format_bytes(used))
+	if free / 1000000 < minSpace:
+		print(format_bytes(total), 'total on source device')
+		print(format_bytes(free), 'free on source device')
+		minSpaceBytes = minSpace * 1000000
+		wanted = minSpaceBytes - free
+		yes = input('less than ' +  str(minSpace) + ' MB free on source device. Would you like to delete the oldest safely copied images to free up ' +format_bytes(wanted) + '? (y/N)')
+		if len(yes) > 0 and yes.upper() == 'Y':
+			safeFilepaths = datesBySafeImageFilepaths.keys()
+			safeFilepaths.sort(key=get_safe_datetime)
+			deletedBytes = 0
+			for fpStr in safeFilepaths:
+				if safeOldImagesExist.get(fpStr):
+					safeOldCount -= 1
+					safeOldImagesExist[fpStr] = False
+				fp = pathlib.Path(fpStr)
+				fpBytes = fp.stat().st_size
+				delete_image(fp)
+				deletedBytes = deletedBytes + fpBytes
+				free = free + fpBytes
+				if free > minSpaceBytes:
+					break
+			print('deleted', format_bytes(deletedBytes), 'of the oldest safely copied images.', format_bytes(free), 'now available on source device')
+
 # ask to delete safely copied files if old enough
 if safeOldImageCount > 0:
-	yes = input('delete', safeOldImageCount, 'safely copied images older than', oldEnough, 'days from source? (y/N)')
-	if yes[0].upper() == 'Y':
+	yes = input('delete ' + str(safeOldImageCount) + ' safely copied images older than ' + str(oldEnough) + ' days from source? (y/N)')
+	if len(yes) > 0 and yes[0].upper() == 'Y':
 		deletedCount = 0
 		for fileStr in safeOldImagesExist.keys():
 			if safeOldImagesExist.get(fileStr):
@@ -254,8 +290,15 @@ if safeOldImageCount > 0:
 # remove empty paths
 for pathStr in potentiallyEmptyPathYes.keys():
 	path = pathlib.Path(pathStr)
-	if path.is_dir() and len(path.iterdir()) == 0:
-		print('X ' + pathStr)
-		path.rmdir()
+	if path.is_dir():
+		count = 0
+		for child in path.iterdir():
+			count += 1
+			break
+		if count == 0:
+			print('X ' + pathStr)
+			path.rmdir()
+		else:
+			print(pathStr + ' is not empty, cannot remove')
 
 press_enter_to_exit()
