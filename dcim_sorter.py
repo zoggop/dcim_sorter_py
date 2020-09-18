@@ -110,7 +110,7 @@ def image_datetime(filepath):
 		return
 	f = filepath.open(mode='rb')
 	# tags = exifread.process_file(f, details=False, stop_tag='DateTimeOriginal')
-	tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal')
+	tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal', details=False)
 	if 'EXIF DateTimeOriginal' in tags.keys():
 		values = tags['EXIF DateTimeOriginal'].values.split(' ')
 		year, month, mday = values[0].split(':')
@@ -124,7 +124,10 @@ def parse_format_string(form, dt, filepath):
 	formatted = dt.strftime(form)
 	tags = {}
 	f = filepath.open(mode='rb')
-	tags = exifread.process_file(f, details=False)
+	if len(formatTags) == 1:
+		tags = exifread.process_file(f, stop_tag=formatTags[0], details=False)
+	else:
+		tags = exifread.process_file(f, details=False)
 	# print(ftags)
 	for tag in formatTags:
 		valObj = tags.get(tag)
