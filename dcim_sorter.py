@@ -32,15 +32,15 @@ wchar = os.get_terminal_size(0).columns
 def get_char(query, allowables):
 	allowable = {}
 	for char in allowables:
-		allowable[char] = True
+		allowable[char.upper()] = True
 	while True:
 		data = input("{query}:\n".format(**locals()))
-		if len(data) > 0 and allowable[data[-1]]:
+		if len(data) > 0 and allowable.get(data[-1].upper()):
 			break
 	return data
 
 def press_enter_to_exit():
-	input("press ENTER to exit:")
+	input("press ENTER to exit")
 	exit()
 
 # check if a destination contains source or source contains a destination
@@ -82,6 +82,9 @@ for ext in exts:
 for ext in nonRawExts:
 	validNonRawExts['.' + ext.upper()] = True
 
+# tags that the formatter needs to look for
+formatTags = re.findall('#(.*?)#', pathForm)
+
 fileCount = 0
 dupeCount = 0
 copyCount = 0
@@ -119,9 +122,8 @@ def parse_format_string(form, dt, filepath):
 	tags = {}
 	f = filepath.open(mode='rb')
 	tags = exifread.process_file(f, details=False)
-	ftags = re.findall('#(.*?)#', form)
 	# print(ftags)
-	for tag in ftags:
+	for tag in formatTags:
 		valObj = tags.get(tag)
 		if valObj:
 			valStr = ''.join(str(v) for v in valObj.values)
@@ -145,7 +147,7 @@ def delete_image(filepath):
 	potentiallyEmptyPathYes[filepath.parent] = True
 
 def process_file(filepath):
-	global fileCount, copyCount, dupeCount, safeOldImageCount, dotStr, oldestDT, newestDT, nowDT
+	global fileCount, copyCount, dupeCount, safeOldImageCount, dotStr, oldestDT, newestDT
 	ext = filepath.suffix
 	ext = ext.upper()
 	if validExts.get(ext) or validNonRawExts.get(ext):
@@ -209,7 +211,51 @@ def process_file(filepath):
 					dotStr = ''
 					copyfile(str(scf), str(dscf))
 
+
+# process files in source directory
 files = srcPath.glob('**/*')
 for filepath in files:
 	# print(filepath, filepath.parent, filepath.name)
 	process_file(filepath)
+
+print(fileCount, 'images found in source,', dupeCount, 'copies found in destination,', copyCount, 'copied')
+if fileCount > 0:
+	oldestStrf = oldestDT.strftime('%F %H:%M')
+	newestStrf = newestDT.strftime('%F %H:%M')
+	print('images found span from ' + oldestStrf + ' to ' + newestStrf)
+
+
+# check copied files and add to safe to delete list if okay
+for destStr in sourcesByCopiedFiles.keys():
+	destFile = pathlib.Path(destStr)
+	srcStr = sourcesByCopiedFiles[destStr]
+	srcFile = pathlib.Path(srcStr)
+	srcDT = datesByCopiedFiles[destStr]
+	if destFile.is_file() and srcFile.stat().st_size == destFile.stat().st_size and srcDT ==image_datetime(destFile):
+		ago = nowDT - srcDT
+		# print(" $days days old ");
+		if ago.days > oldEnough:
+			safeOldImageCount += 1
+			safeOldImagesExist[srcStr] = True
+		datesBySafeImageFilepaths[srcStr] = srcDT
+
+# ask to delete safely copied files if old enough
+if safeOldImageCount > 0:
+	yes = input('delete', safeOldImageCount, 'safely copied images older than', oldEnough, 'days from source? (y/N)')
+	if yes[0].upper() == 'Y':
+		deletedCount = 0
+		for fileStr in safeOldImagesExist.keys():
+			if safeOldImagesExist.get(fileStr):
+				print('X ' + fileStr)
+				delete_image(pathlib.Path(fileStr))
+				deletedCount += 1
+		print(deletedCount, 'images deleted from source')
+
+# remove empty paths
+for pathStr in potentiallyEmptyPathYes.keys():
+	path = pathlib.Path(pathStr)
+	if path.is_dir() and len(path.iterdir()) == 0:
+		print('X ' + pathStr)
+		path.rmdir()
+
+press_enter_to_exit()
