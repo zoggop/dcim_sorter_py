@@ -1,16 +1,13 @@
-import fnmatch
 import os
 import sys
-import platform
 import datetime
 import exifread
 import re
 from shutil import copyfile
-import glob
 import pathlib
 
-oldEnough = 30
-minSpace = 1000
+oldEnough = 30 # beyond this many days old, files can be deleted from source if they're present in destination
+minSpace = 1000 # MB less than this much space (in megabytes) on the source drive, you'll be asked if you want to delete some of the oldest images
 exts = ['dng', 'cr2', 'cr3', 'nef', '3fr', 'arq', 'crw', 'cs1', 'czi', 'dcr', 'erf', 'gpr', 'iiq', 'k25', 'kdc', 'mef', 'mrw', 'nrw', 'orf', 'pef', 'r3d', 'raw', 'rw2', 'rwl', 'rwz', 'sr2', 'srf', 'srw', 'x3f'] # files with these exntensions will be copied to raw destination
 nonRawExts = ['jpg', 'jpeg', 'png', 'webp', 'heif', 'heic', 'avci', 'avif']
 sidecarExts = ['pp3', 'pp2', 'arp', 'xmp']
@@ -29,6 +26,8 @@ print(str(srcPath))
 
 wchar = os.get_terminal_size(0).columns
 
+minSpaceBytes = minSpace * 1000000
+
 def format_bytes(size):
     # 2**10 = 1024
     power = 2**10
@@ -37,7 +36,11 @@ def format_bytes(size):
     while size > power:
         size /= power
         n += 1
-    return str(int(size)) + ' ' + power_labels[n]+'B'
+    if size < 10:
+    	size = round(size, 1)
+    else:
+    	size = int(size)
+    return str(size) + ' ' + power_labels[n]+'B'
 
 def press_enter_to_exit():
 	input("press ENTER to exit")
@@ -150,7 +153,7 @@ def delete_image(filepath):
 	delete_sidecars(filepath)
 	print('X ' + str(filepath))
 	filepath.unlink()
-	potentiallyEmptyPathYes[filepath.parent] = True
+	potentiallyEmptyPathYes[str(filepath.parent)] = True
 
 def process_file(filepath):
 	global fileCount, copyCount, dupeCount, safeOldImageCount, dotStr, oldestDT, newestDT
@@ -254,17 +257,18 @@ if srcPath.stat().st_dev != destPath.stat().st_dev:
 	total = st.f_blocks * st.f_frsize
 	used = (st.f_blocks - st.f_bfree) * st.f_frsize
 	# print('free:', format_bytes(free), "total:", format_bytes(total), 'used:', format_bytes(used))
-	if free / 1000000 < minSpace:
+	if free < minSpaceBytes:
 		print(format_bytes(total), 'total on source device')
 		print(format_bytes(free), 'free on source device')
-		minSpaceBytes = minSpace * 1000000
 		wanted = minSpaceBytes - free
-		yes = input('less than ' +  str(minSpace) + ' MB free on source device. Would you like to delete the oldest safely copied images to free up ' +format_bytes(wanted) + '? (y/N)')
+		yes = input('less than ' +  format_bytes(minSpaceBytes) + ' free on source device. Would you like to delete the oldest safely copied images to free up ' + format_bytes(wanted) + '? (y/N)')
 		if len(yes) > 0 and yes.upper() == 'Y':
-			safeFilepaths = datesBySafeImageFilepaths.keys()
-			safeFilepaths.sort(key=get_safe_datetime)
+			safeFPStrs = []
+			for fpStr in datesBySafeImageFilepaths.keys():
+				safeFPStrs.append(fpStr)
+			safeFPStrs.sort(key=get_safe_datetime)
 			deletedBytes = 0
-			for fpStr in safeFilepaths:
+			for fpStr in safeFPStrs:
 				if safeOldImagesExist.get(fpStr):
 					safeOldCount -= 1
 					safeOldImagesExist[fpStr] = False
@@ -300,7 +304,7 @@ for pathStr in potentiallyEmptyPathYes.keys():
 		if count == 0:
 			print('X ' + pathStr)
 			path.rmdir()
-		else:
-			print(pathStr + ' is not empty, cannot remove')
+		# else:
+			# print(pathStr + ' is not empty, cannot remove')
 
 press_enter_to_exit()
