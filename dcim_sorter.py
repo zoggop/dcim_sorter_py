@@ -28,7 +28,6 @@ srcPath = pathlib.Path(sys.argv[1])
 print(str(srcPath))
 
 wchar = os.get_terminal_size(0).columns
-print(wchar, 'columns')
 
 def format_bytes(size):
     # 2**10 = 1024
