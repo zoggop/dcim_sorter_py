@@ -6,15 +6,18 @@ import re
 from shutil import copyfile
 import pathlib
 
+# configuration:
+destDir = '/Users/isaac/Raw' # where to copy raw files into directory structure
+nonRawDestDir = '/Users/isaac/Pictures' # where to copy non-raw images into directory structure
+otherDirs = ['/Users/isaac/Raw/dark-frames', '/Users/isaac/Raw/flat-fields'] # directories to look for copies other than the destination directories
+askToDeleteAll = True # ask to delete all images from source after copying. overrides oldEnough and minSpace
 oldEnough = 30 # beyond this many days old, files can be deleted from source if they're present in destination
 minSpace = 1000 # MB less than this much space (in megabytes) on the source drive, you'll be asked if you want to delete some of the oldest images
+pathForm = '#Image Model#/%Y/%Y-%m' # surround EXIF tags with #, and use POSIX datetime place-holders
 exts = ['dng', 'cr2', 'cr3', 'nef', '3fr', 'arq', 'crw', 'cs1', 'czi', 'dcr', 'erf', 'gpr', 'iiq', 'k25', 'kdc', 'mef', 'mrw', 'nrw', 'orf', 'pef', 'r3d', 'raw', 'rw2', 'rwl', 'rwz', 'sr2', 'srf', 'srw', 'x3f'] # files with these exntensions will be copied to raw destination
 nonRawExts = ['jpg', 'jpeg', 'png', 'webp', 'heif', 'heic', 'avci', 'avif']
 sidecarExts = ['pp3', 'pp2', 'arp', 'xmp']
-destDir = '/Users/isaac/Raw' # where to copy raw files into directory structure
-nonRawDestDir = '/Users/isaac/Pictures' # where to copy non-raw images into directory structure
-pathForm = '#Image Model#/%Y/%Y-%m' # surround EXIF tags with #, and can use POSIX datetime place-holder
-otherDirs = ['/Users/isaac/Raw/dark-frames', '/Users/isaac/Raw/flat-fields'] # directories to look for copies other than the destination directories
+
 
 destPath = pathlib.Path(destDir)
 nonRawDestPath = pathlib.Path(nonRawDestDir)
@@ -233,7 +236,8 @@ if fileCount > 0:
 	oldestStrf = oldestDT.strftime('%F %H:%M')
 	newestStrf = newestDT.strftime('%F %H:%M')
 	print('images found span from ' + oldestStrf + ' to ' + newestStrf)
-
+else:
+	press_enter_to_exit()
 
 # check copied files and add to safe to delete list if okay
 for destStr in sourcesByCopiedFiles.keys():
@@ -249,9 +253,20 @@ for destStr in sourcesByCopiedFiles.keys():
 			safeOldImagesExist[srcStr] = True
 		datesBySafeImageFilepaths[srcStr] = srcDT
 
+# ask to delete all copied images from source if askToDeleteAll is set to true
+didDeleteAll = False
+if askToDeleteAll:
+	yes = input('Delete all safely copied images from source? (y/N)')
+	if len(yes) > 0 and yes.upper() == 'Y':
+		for fpStr in datesBySafeImageFilepaths.keys():
+			fp = pathlib.Path(fpStr)
+			delete_image(fp)
+		didDeleteAll = True
+
+
 # check space on source drive if different, and potentially free up space by deleting old images
 # print(srcPath.stat().st_dev, destPath.stat().st_dev)
-if srcPath.stat().st_dev != destPath.stat().st_dev:
+if didDeleteAll == False and srcPath.stat().st_dev != destPath.stat().st_dev:
 	st = os.statvfs(str(srcPath))
 	free = st.f_bavail * st.f_frsize
 	total = st.f_blocks * st.f_frsize
@@ -282,7 +297,7 @@ if srcPath.stat().st_dev != destPath.stat().st_dev:
 			print('deleted', format_bytes(deletedBytes), 'of the oldest safely copied images.', format_bytes(free), 'now available on source device')
 
 # ask to delete safely copied files if old enough
-if safeOldImageCount > 0:
+if didDeleteAll == False and safeOldImageCount > 0:
 	yes = input('delete ' + str(safeOldImageCount) + ' safely copied images older than ' + str(oldEnough) + ' days from source? (y/N)')
 	if len(yes) > 0 and yes[0].upper() == 'Y':
 		deletedCount = 0
