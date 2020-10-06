@@ -4,12 +4,14 @@ import datetime
 import exifread
 import re
 from shutil import copyfile
+from shutil import disk_usage
+from shutil import get_terminal_size
 import pathlib
 
 # configuration:
-destDir = '/Users/isaac/Raw' # where to copy raw files into directory structure
-nonRawDestDir = '/Users/isaac/Pictures' # where to copy non-raw images into directory structure
-otherDirs = ['/Users/isaac/Raw/dark-frames', '/Users/isaac/Raw/flat-fields'] # directories to look for copies other than the destination directories
+destDir = '/Users/zoggop/Raw' # where to copy raw files into directory structure
+nonRawDestDir = '/Users/zoggop/Pictures' # where to copy non-raw images into directory structure
+otherDirs = ['/Users/zoggop/Raw/dark-frames', '/Users/zoggop/Raw/flat-fields'] # directories to look for copies other than the destination directories
 askToDeleteAll = True # ask to delete all images from source after copying. overrides oldEnough and minSpace
 oldEnough = 30 # beyond this many days old, files can be deleted from source if they're present in destination
 minSpace = 1000 # MB less than this much space (in megabytes) on the source drive, you'll be asked if you want to delete some of the oldest images
@@ -27,7 +29,7 @@ for d in otherDirs:
 srcPath = pathlib.Path(sys.argv[1])
 print(str(srcPath))
 
-wchar = os.get_terminal_size(0).columns
+wchar = get_terminal_size(0).columns
 
 minSpaceBytes = minSpace * 1000000
 
@@ -263,14 +265,10 @@ if askToDeleteAll:
 			delete_image(fp)
 		didDeleteAll = True
 
-
 # check space on source drive if different, and potentially free up space by deleting old images
 # print(srcPath.stat().st_dev, destPath.stat().st_dev)
 if didDeleteAll == False and srcPath.stat().st_dev != destPath.stat().st_dev:
-	st = os.statvfs(str(srcPath))
-	free = st.f_bavail * st.f_frsize
-	total = st.f_blocks * st.f_frsize
-	used = (st.f_blocks - st.f_bfree) * st.f_frsize
+	total, used, free = disk_usage(srcPath)
 	# print('free:', format_bytes(free), "total:", format_bytes(total), 'used:', format_bytes(used))
 	if free < minSpaceBytes:
 		print(format_bytes(total), 'total on source device')
