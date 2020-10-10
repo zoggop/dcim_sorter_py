@@ -3,7 +3,7 @@ import sys
 import datetime
 import exifread
 import re
-from shutil import copyfile
+from shutil import copy2
 from shutil import disk_usage
 from shutil import get_terminal_size
 import pathlib
@@ -114,7 +114,7 @@ def get_safe_datetime(fileStr):
 	return datesBySafeImageFilepaths.get(fileStr)
 
 def image_datetime(filepath):
-	if not filepath.is_file():
+	if not filepath.exists():
 		return
 	f = filepath.open(mode='rb')
 	# tags = exifread.process_file(f, details=False, stop_tag='DateTimeOriginal')
@@ -150,7 +150,7 @@ def delete_sidecars(filepath):
 	for scExt in sidecarExts:
 		sidecarFiles = [pathlib.Path(str(filepath) + '.' + scExt), pathlib.Path(str(filepath.parent / filepath.stem) + '.' + scExt)]
 		for scf in sidecarFiles:
-			if scf.is_file():
+			if scf.exists():
 				print('X ' + str(scf))
 				scf.unlink()
 
@@ -186,7 +186,7 @@ def process_file(filepath):
 		paths = [destPP] + otherPaths
 		for p in paths:
 			look = pathlib.Path(p / filepath.name)
-			if look.is_file() and look.stat().st_size == filepath.stat().st_size and srcDT == image_datetime(look):
+			if look.exists() and look.stat().st_size == filepath.stat().st_size and srcDT == image_datetime(look):
 				found = True
 				break
 		if found:
@@ -209,7 +209,7 @@ def process_file(filepath):
 			print('-> ' + str(destFile))
 			dotStr = ''
 			os.makedirs(destFile.parent, exist_ok=True)
-			copyfile(str(filepath), str(destFile))
+			copy2(str(filepath), str(destFile))
 			datesByCopiedFiles[str(destFile)] = srcDT
 			sourcesByCopiedFiles[str(destFile)] = str(filepath)
 			copyCount += 1
@@ -220,11 +220,11 @@ def process_file(filepath):
 			for i in range(0, len(sidecarFiles)):
 				scf = pathlib.Path(sidecarFiles[i])
 				dscf = pathlib.Path(destSidecarFiles[i])
-				if scf.is_file() and not dscf.is_file():
+				if scf.exists() and not dscf.exists():
 					print(str(scf))
 					print('-> ' + str(dscf))
 					dotStr = ''
-					copyfile(str(scf), str(dscf))
+					copy2(str(scf), str(dscf))
 
 
 # process files in source directory
@@ -247,7 +247,7 @@ for destStr in sourcesByCopiedFiles.keys():
 	srcStr = sourcesByCopiedFiles[destStr]
 	srcFile = pathlib.Path(srcStr)
 	srcDT = datesByCopiedFiles[destStr]
-	if destFile.is_file() and srcFile.stat().st_size == destFile.stat().st_size and srcDT ==image_datetime(destFile):
+	if destFile.exists() and srcFile.stat().st_size == destFile.stat().st_size and srcDT ==image_datetime(destFile):
 		ago = nowDT - srcDT
 		# print(" $days days old ");
 		if ago.days > oldEnough:
