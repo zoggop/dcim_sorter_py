@@ -9,9 +9,9 @@ from shutil import get_terminal_size
 import pathlib
 
 # configuration:
-destDir = '/Users/zoggop/Raw' # where to copy raw files into directory structure
-nonRawDestDir = '/Users/zoggop/Pictures' # where to copy non-raw images into directory structure
-otherDirs = ['/Users/zoggop/Raw/dark-frames', '/Users/zoggop/Raw/flat-fields'] # directories to look for copies other than the destination directories
+destDir = '~/Raw' # where to copy raw files into directory structure
+nonRawDestDir = '~/Pictures' # where to copy non-raw images into directory structure
+otherDirs = ['~/Raw/dark-frames', '~/Raw/flat-fields'] # directories to look for copies other than the destination directories
 askToDeleteAll = True # ask to delete all images from source after copying. overrides oldEnough and minSpace
 oldEnough = 30 # beyond this many days old, files can be deleted from source if they're present in destination
 minSpace = 1000 # MB less than this much space (in megabytes) on the source drive, you'll be asked if you want to delete some of the oldest images
@@ -20,13 +20,12 @@ exts = ['dng', 'cr2', 'cr3', 'nef', '3fr', 'arq', 'crw', 'cs1', 'czi', 'dcr', 'e
 nonRawExts = ['jpg', 'jpeg', 'png', 'webp', 'heif', 'heic', 'avci', 'avif']
 sidecarExts = ['pp3', 'pp2', 'arp', 'xmp']
 
-
-destPath = pathlib.Path(destDir)
-nonRawDestPath = pathlib.Path(nonRawDestDir)
+destPath = pathlib.Path(destDir).expanduser()
+nonRawDestPath = pathlib.Path(nonRawDestDir).expanduser()
 otherPaths = []
 for d in otherDirs:
-	otherPaths.append(pathlib.Path(d))
-srcPath = pathlib.Path(sys.argv[1])
+	otherPaths.append(pathlib.Path(d).expanduser())
+srcPath = pathlib.Path(sys.argv[1]).expanduser()
 print(str(srcPath))
 
 wchar = get_terminal_size(0).columns
