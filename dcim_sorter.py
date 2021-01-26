@@ -183,11 +183,13 @@ def process_file(filepath):
 		destFile = pathlib.PurePath(destPP / filepath.name)
 		found = False
 		paths = [destPP] + otherPaths
+		exists = False
 		for p in paths:
 			look = pathlib.Path(p / filepath.name)
-			if look.exists() and look.stat().st_size == filepath.stat().st_size and srcDT == image_datetime(look):
-				found = True
-				break
+			if look.exists():
+				if look.stat().st_size == filepath.stat().st_size and srcDT == image_datetime(look):
+					found = True
+					break
 		if found:
 			ago = nowDT - srcDT
 			if ago.days > oldEnough:
@@ -203,6 +205,11 @@ def process_file(filepath):
 			dotStr = dotStr + '.'
 			print(dotStr)
 		else:
+			# if file already exists but isn't the same, make a filename that doesn't exist
+			suffixNum = 1
+			while pathlib.Path(destFile).exists():
+				destFile = pathlib.PurePath(destPP / (filepath.stem + '-' + str(suffixNum) + filepath.suffix))
+				suffixNum += 1
 			# if file not found in destination, make directories and copy it
 			print(str(filepath))
 			print('-> ' + str(destFile))
